@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#8a71bb" />
+    <meta name="description" content="Nook — your favorite corners of the internet, all in one place. A personal start page with organized bookmarks and beautiful themes." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect x='3' y='3' width='15' height='15' rx='5' fill='%238a71bb'/%3E%3Crect x='22' y='3' width='15' height='15' rx='5' fill='%23c1addc'/%3E%3Crect x='3' y='22' width='15' height='15' rx='5' fill='%23ac94ca'/%3E%3Crect x='22' y='22' width='15' height='15' rx='5' fill='%238a71bb'/%3E%3C/svg%3E" />
+    <title>Nook — Your personal start page</title>
+    <style>
+      /* Fallback shown only when the app cannot boot (e.g. raw source opened as a local file). */
+      #boot-message{display:none;position:fixed;inset:0;z-index:999;background:#faf9fc;color:#33323e;font-family:'DM Sans',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;align-items:center;justify-content:center;padding:24px}
+      #boot-message .boot-card{max-width:460px;background:#fff;border:1px solid #eae7ef;border-radius:18px;padding:38px 40px;box-shadow:0 10px 40px rgba(56,36,77,.06)}
+      #boot-message .boot-mark{display:grid;grid-template-columns:14px 14px;grid-template-rows:14px 14px;gap:4px;margin-bottom:20px}
+      #boot-message .boot-mark i{border-radius:5px;background:#8a71bb}
+      #boot-message .boot-mark i:nth-child(2){opacity:.5}
+      #boot-message .boot-mark i:last-child{opacity:.75}
+      #boot-message h1{font-size:22px;margin:0 0 8px;letter-spacing:-.02em}
+      #boot-message p{font-size:13px;line-height:1.7;color:#777381;margin:0 0 16px}
+      #boot-message ol{margin:0 0 18px;padding-left:20px;font-size:13px;line-height:2;color:#33323e}
+      #boot-message code{background:#eae3f4;color:#765aa6;border-radius:6px;padding:2px 7px;font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:12px}
+      #boot-message .boot-path{word-break:break-all;background:#f5f2fa;border:1px solid #eae7ef;border-radius:8px;padding:8px 12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:#777381;margin-bottom:16px}
+      #boot-message .boot-file-hint{display:none}
+      #boot-message .boot-file-hint.show{display:block}
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <noscript>
+      <div id="boot-message" style="display:flex">
+        <div class="boot-card">
+          <div class="boot-mark"><i></i><i></i><i></i><i></i></div>
+          <h1>JavaScript is turned off</h1>
+          <p>Nook is an interactive start page and needs JavaScript enabled in your browser to load. Please enable it and refresh the page.</p>
+        </div>
+      </div>
+    </noscript>
+
+    <div id="boot-message" role="alert">
+      <div class="boot-card">
+        <div class="boot-mark"><i></i><i></i><i></i><i></i></div>
+        <h1>One more step to open your Nook</h1>
+        <p class="boot-file-hint" id="boot-file-hint">You opened this <code>index.html</code> straight from the project files. Browsers can’t run the source code directly — it needs one quick build first.</p>
+        <ol>
+          <li>Open a terminal in the project folder</li>
+          <li>Run <code>npm install</code> then <code>npm run build</code></li>
+          <li>Open the file it creates:</li>
+        </ol>
+        <div class="boot-path" id="boot-path">dist/index.html</div>
+        <p><strong>To work on it</strong>, run <code>npm run dev</code> and open the local address it prints. If you already built it and still see this, your browser blocked the page’s scripts — try a different browser or serve the folder with <code>npx serve</code>.</p>
+      </div>
+    </div>
+
+    <script>
+      /* Paint the saved theme before React boots so there is no flash of the wrong colours. */
+      (function () {
+        try {
+          var saved = JSON.parse(localStorage.getItem('nook-vars') || localStorage.getItem('nest-vars') || 'null');
+          if (saved && saved.css) {
+            var root = document.documentElement;
+            for (var name in saved.css) root.style.setProperty(name, saved.css[name]);
+            root.dataset.mode = saved.mode || 'light';
+          }
+        } catch (e) {}
+      })();
+      (function () {
+        window.setTimeout(function () {
+          var root = document.getElementById('root');
+          if (root && root.childElementCount === 0) {
+            var hint = document.getElementById('boot-file-hint');
+            if (hint && window.location.protocol === 'file:') hint.className = 'boot-file-hint show';
+            var el = document.getElementById('boot-message');
+            if (el) el.style.display = 'flex';
+          }
+        }, 2500);
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
