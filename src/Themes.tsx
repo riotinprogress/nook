@@ -42,7 +42,14 @@ export function ThemeGallery({ themeId, alts, customs, onPick, onCycle, onEdit, 
   const [mode, setMode] = useState<'all' | 'dark' | 'light' | 'mine' | 'favorites'>('all');
   const [columns, setColumns] = useState(3);
   const [loadedCount, setLoadedCount] = useState(36);
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [favorites, setFavorites] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem('nook-favorites');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const list = useMemo(() => {
@@ -55,6 +62,10 @@ export function ThemeGallery({ themeId, alts, customs, onPick, onCycle, onEdit, 
         (!q || t.name.toLowerCase().includes(q))
     );
   }, [query, mode, alts, customs, favorites]);
+
+  useEffect(() => {
+    localStorage.setItem('nook-favorites', JSON.stringify([...favorites]));
+  }, [favorites]);
 
   useEffect(() => {
     const el = sentinelRef.current;

@@ -1393,6 +1393,11 @@ function App() {
                         cardStyle['--bk-color'] = b.customColor;
                       }
                       
+                      // Handle theme accent overrides
+                      if (b.themeAccent === 'custom' && b.customAccent) {
+                        cardStyle['--bk-accent'] = b.customAccent;
+                      }
+                      
                       return (
                         <div
                           className={
@@ -1451,7 +1456,7 @@ function App() {
                             {(showName || showDomain) && (
                               <span style={{order: b.iconNameOrder === 'icon-first' ? 1 : 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px'}}>
                                 {showName && (
-                                  <strong className={cls} style={style}>
+                                  <strong className={cls} style={{...style, fontSize: b.nameSize ? `calc(var(--fs) * ${b.nameSize / 100})` : style.fontSize}}>
                                     {b.name}
                                   </strong>
                                 )}
@@ -1992,14 +1997,14 @@ function App() {
                             <label>
                               Size
                               <SliderRow
-                                value={bookmarkForm.iconStyle?.scale ?? 100}
+                                value={bookmarkForm.iconStyle?.size ?? 100}
                                 dflt={100}
                                 min={50}
                                 max={200}
                                 unit=""
                                 onChange={(n) => n != null && setBookmarkForm({ 
                                   ...bookmarkForm, 
-                                  iconStyle: { ...bookmarkForm.iconStyle, scale: n } 
+                                  iconStyle: { ...bookmarkForm.iconStyle, size: n } 
                                 })}
                               />
                             </label>
@@ -2020,28 +2025,28 @@ function App() {
                             <label>
                               X Position
                               <SliderRow
-                                value={bookmarkForm.iconStyle?.x ?? 0}
+                                value={bookmarkForm.iconStyle?.dx ?? 0}
                                 dflt={0}
                                 min={-50}
                                 max={50}
                                 unit=""
                                 onChange={(n) => n != null && setBookmarkForm({ 
                                   ...bookmarkForm, 
-                                  iconStyle: { ...bookmarkForm.iconStyle, x: n } 
+                                  iconStyle: { ...bookmarkForm.iconStyle, dx: n } 
                                 })}
                               />
                             </label>
                             <label>
                               Y Position
                               <SliderRow
-                                value={bookmarkForm.iconStyle?.y ?? 0}
+                                value={bookmarkForm.iconStyle?.dy ?? 0}
                                 dflt={0}
                                 min={-50}
                                 max={50}
                                 unit=""
                                 onChange={(n) => n != null && setBookmarkForm({ 
                                   ...bookmarkForm, 
-                                  iconStyle: { ...bookmarkForm.iconStyle, y: n } 
+                                  iconStyle: { ...bookmarkForm.iconStyle, dy: n } 
                                 })}
                               />
                             </label>
@@ -2056,7 +2061,11 @@ function App() {
                                     ...bookmarkForm, 
                                     iconStyle: { 
                                       ...bookmarkForm.iconStyle, 
-                                      shadow: currentShadow ? undefined : { x: 0, y: 2, blur: 4, color: '#00000040' } 
+                                      shadow: !currentShadow,
+                                      shadowX: !currentShadow ? 0 : undefined,
+                                      shadowY: !currentShadow ? 2 : undefined,
+                                      shadowBlur: !currentShadow ? 6 : undefined,
+                                      shadowColor: !currentShadow ? '#000000' : undefined
                                     } 
                                   });
                                 }}
@@ -2067,7 +2076,7 @@ function App() {
                             <div className="shadow-expanded">
                               <SliderRow
                                 label="X"
-                                value={bookmarkForm.iconStyle?.shadow?.x ?? 0}
+                                value={bookmarkForm.iconStyle?.shadowX ?? 0}
                                 dflt={0}
                                 min={-20}
                                 max={20}
@@ -2076,14 +2085,14 @@ function App() {
                                   ...bookmarkForm, 
                                   iconStyle: { 
                                     ...bookmarkForm.iconStyle, 
-                                    shadow: { ...(bookmarkForm.iconStyle?.shadow || {}), x: n } 
+                                    shadowX: n
                                   } 
                                 })}
                                 disabled={!bookmarkForm.iconStyle?.shadow}
                               />
                               <SliderRow
                                 label="Y"
-                                value={bookmarkForm.iconStyle?.shadow?.y ?? 2}
+                                value={bookmarkForm.iconStyle?.shadowY ?? 2}
                                 dflt={2}
                                 min={-20}
                                 max={20}
@@ -2092,36 +2101,63 @@ function App() {
                                   ...bookmarkForm, 
                                   iconStyle: { 
                                     ...bookmarkForm.iconStyle, 
-                                    shadow: { ...(bookmarkForm.iconStyle?.shadow || {}), y: n } 
+                                    shadowY: n
                                   } 
                                 })}
                                 disabled={!bookmarkForm.iconStyle?.shadow}
                               />
                               <SliderRow
                                 label="Blur"
-                                value={bookmarkForm.iconStyle?.shadow?.blur ?? 4}
-                                dflt={4}
+                                value={bookmarkForm.iconStyle?.shadowBlur ?? 6}
+                                dflt={6}
                                 min={0}
-                                max={20}
+                                max={30}
                                 unit=""
                                 onChange={(n) => n != null && setBookmarkForm({ 
                                   ...bookmarkForm, 
                                   iconStyle: { 
                                     ...bookmarkForm.iconStyle, 
-                                    shadow: { ...(bookmarkForm.iconStyle?.shadow || {}), blur: n } 
+                                    shadowBlur: n
                                   } 
                                 })}
                                 disabled={!bookmarkForm.iconStyle?.shadow}
                               />
+                              <label style={{ marginTop: '8px' }}>
+                                Color
+                                <input
+                                  type="color"
+                                  value={bookmarkForm.iconStyle?.shadowColor || '#000000'}
+                                  onChange={(e) => setBookmarkForm({
+                                    ...bookmarkForm,
+                                    iconStyle: {
+                                      ...bookmarkForm.iconStyle,
+                                      shadowColor: e.target.value
+                                    }
+                                  })}
+                                  disabled={!bookmarkForm.iconStyle?.shadow}
+                                  style={{ width: '100%', height: '32px', cursor: 'pointer' }}
+                                />
+                              </label>
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            className="ghost-button reset-icon-style"
-                            onClick={() => setBookmarkForm({ ...bookmarkForm, iconStyle: {} })}
-                          >
-                            <Icon name="refresh" size={14} /> Reset icon style
-                          </button>
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                            <button
+                              type="button"
+                              className="ghost-button"
+                              onClick={() => setStyleOpen(true)}
+                              style={{ flex: 1 }}
+                            >
+                              <Icon name="sliders" size={14} /> Advanced Editor
+                            </button>
+                            <button
+                              type="button"
+                              className="ghost-button reset-icon-style"
+                              onClick={() => setBookmarkForm({ ...bookmarkForm, iconStyle: {} })}
+                              style={{ flex: 1 }}
+                            >
+                              <Icon name="refresh" size={14} /> Reset
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -2713,6 +2749,7 @@ function App() {
                                 ...(typeof ds.showBookmarkDomain === 'boolean' ? { showBookmarkDomain: ds.showBookmarkDomain } : {}),
                                 ...(typeof ds.contentWidth === 'number' ? { contentWidth: clampNum(ds.contentWidth, 640, 2000, prev.contentWidth) } : {}),
                                 ...(typeof ds.cardGap === 'number' ? { cardGap: clampNum(ds.cardGap, 0, 48, prev.cardGap) } : {}),
+                                ...(typeof ds.cardRoundness === 'number' ? { cardRoundness: clampNum(ds.cardRoundness, 0, 32, prev.cardRoundness) } : {}),
                                 ...(typeof ds.sidebarWidth === 'number' ? { sidebarWidth: clampNum(ds.sidebarWidth, 160, 480, prev.sidebarWidth) } : {}),
                                 ...(ds.sidebarMode === 'show' || ds.sidebarMode === 'hide' || ds.sidebarMode === 'hover'
                                   ? { sidebarMode: ds.sidebarMode }
