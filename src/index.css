@@ -254,10 +254,10 @@
 .group-icon-label{margin-bottom:10px}
 
 /* Bookmark Edit Tabs */
-.bookmark-tabs{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--line)}
-.bookmark-tab{padding:8px 14px;font-size:calc(11px * var(--fs, 1));font-weight:500;color:var(--muted);border:0;background:none;border-radius:6px 6px 0 0;cursor:pointer;transition:all .2s}
-.bookmark-tab:hover{color:var(--text);background:var(--hover)}
-.bookmark-tab.active{color:var(--accent);background:transparent;border-bottom:2px solid var(--accent)}
+.bookmark-tabs{display:flex;gap:4px;justify-content:center;width:fit-content;max-width:100%;margin:0 auto 18px;background:var(--sidebar);border:1px solid var(--line);border-radius:8px;padding:3px}
+.bookmark-tab{font-size:calc(10px * var(--fs, 1));font-weight:500;padding:0 14px;height:30px;border-radius:6px;color:var(--secondary);border:0;background:none;display:flex;align-items:center;cursor:pointer;transition:color .2s,background .2s}
+.bookmark-tab:hover{color:var(--accent)}
+.bookmark-tab.active{background:var(--accent-soft);color:var(--accent-dark)}
 /* Tab styling to match Layout section - already defined above, so this is duplicate and can be removed */
 .tab-content{animation:fadeIn .2s}
 @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
@@ -295,6 +295,32 @@
 .shadow-expanded .unit{font-size:calc(9px * var(--fs, 1))}
 .setting-slider.full-width .slider-with-reset{flex:1;min-width:0}
 .setting-slider.full-width .slider-with-reset .reset-btn{flex-shrink:0}
+
+/* ===== Bookmark editor UI refinements ===== */
+/* #2 Hover feedback on text inputs, selects and toggle switches */
+.modal input:not([type=file]):not([type=color]):hover,.modal select:hover{border-color:color-mix(in srgb,var(--accent) 55%,var(--line));box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)}
+.modal .toggle:hover{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 20%,transparent)}
+.modal .icon-options button:hover{border-color:var(--accent);color:var(--accent)}
+/* #5 Give the "Bookmark icon" label the same breathing room as other labels */
+.modal label:has(.icon-options) .icon-options{margin-top:8px}
+/* #6 / #7 Font Size & Weight rows: reset button + select match the number input height */
+.font-slider-row .reset-btn{width:34px;height:34px}
+.font-slider-row select{height:34px!important;margin-top:0!important;flex:1;min-width:0}
+/* #11 Icon sub-tab labels match the "Shadow" label size */
+.icon-style-inline>label{font-size:calc(12px * var(--fs, 1));font-weight:600}
+.shadow-row>span{font-size:calc(12px * var(--fs, 1));font-weight:600}
+/* #12 Shadow sliders align to the same width as Size / Rotation / X / Y */
+.shadow-expanded{padding:0;gap:12px}
+/* #14 / #15 / #17 / #18 Theme & Position sliders run full length; reset matches input height */
+.slider-with-reset{width:100%}
+.slider-with-reset>.font-slider-row{flex:1;min-width:0}
+.slider-with-reset .reset-btn{width:34px;height:34px;flex-shrink:0}
+/* #16 Balance the spacing around the alignment block on the Position tab */
+.modal label:has(.alignment-grid){margin-top:20px;margin-bottom:12px}
+/* #10 Live icon preview at the top of the Style > Icon sub-tab */
+.icon-preview-box{display:flex;align-items:center;justify-content:center;min-height:96px;padding:18px;margin-bottom:16px;border:1px solid var(--line);border-radius:12px;background:var(--sidebar);overflow:hidden}
+.icon-preview-box .site-logo{font-size:32px}
+.icon-preview-box .site-logo :where(svg,img){width:40px;height:40px}
 
 /* Bookmark card styling with per-bookmark overrides */
 

@@ -14,6 +14,8 @@ import { SliderRow } from './SliderRow';
 import {
   DEFAULT_GLOBAL_FONT,
   INHERIT_FONT,
+  EFFECT_OPTIONS,
+  HOVER_OPTIONS,
   fontClasses,
   globalAppStyle,
   normFont,
@@ -1369,11 +1371,13 @@ function App() {
                   {!g.collapsed && (
                   <div className="bookmark-grid" style={{ gap: settings.cardGap }}>
                     {g.bookmarks.map((b) => {
-                      const resolved = resolveFont(globalFont, g.font, b.font);
+                      const editingThis = modal === 'bookmark' && bookmarkForm.id === b.id;
+                      const resolved = resolveFont(globalFont, g.font, editingThis ? bookmarkForm.font : b.font);
                       const style = titleStyle(resolved);
                       const cls = fontClasses(resolved);
-                      const showIcon = b.showIcon !== false && settings.showBookmarkIcon;
-                      const showName = b.showName !== false && settings.showBookmarkName;
+                      const showIcon = (editingThis ? bookmarkForm.showIcon : b.showIcon) !== false && settings.showBookmarkIcon;
+                      const showName = (editingThis ? bookmarkForm.showName : b.showName) !== false && settings.showBookmarkName;
+                      const effNameSize = editingThis ? bookmarkForm.nameSize : b.nameSize;
                       const showDomain = settings.showBookmarkDomain;
                       const cardRoundness = b.cardRoundness ?? settings.cardRoundness ?? 9;
                       const cardOpacity = b.cardOpacity ?? 100;
@@ -1449,15 +1453,15 @@ function App() {
                             }}
                           >
                             {showIcon && (
-                              <span className="site-logo" style={{...iconStyleCss(b.iconStyle), order: b.iconNameOrder === 'name-first' ? 1 : 0}}>
-                                <Brand kind={b.icon} name={b.name} url={b.url} text={b.iconText} />
+                              <span className="site-logo" style={{...iconStyleCss(editingThis ? bookmarkForm.iconStyle : b.iconStyle), order: b.iconNameOrder === 'name-first' ? 1 : 0}}>
+                                <Brand kind={editingThis ? (bookmarkForm.icon === 'auto' ? resolveAutoIcon(formUrl) : bookmarkForm.icon) : b.icon} name={editingThis ? (bookmarkForm.name || b.name) : b.name} url={editingThis ? formUrl : b.url} text={editingThis ? bookmarkForm.iconText : b.iconText} />
                               </span>
                             )}
                             {(showName || showDomain) && (
                               <span style={{order: b.iconNameOrder === 'icon-first' ? 1 : 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px'}}>
                                 {showName && (
-                                  <strong className={cls} style={{...style, fontSize: b.nameSize ? `calc(var(--fs) * ${b.nameSize / 100})` : style.fontSize}}>
-                                    {b.name}
+                                  <strong className={cls} style={{...style, fontSize: effNameSize ? `calc(${(resolved.size ?? 11)}px * var(--fs, 1) * ${effNameSize / 100})` : style.fontSize}}>
+                                    {editingThis ? (bookmarkForm.name || b.name) : b.name}
                                   </strong>
                                 )}
                                 {showDomain && <span className="site-domain">{domain(b.url)}</span>}
@@ -1617,6 +1621,7 @@ function App() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-title"
+            style={modal === 'bookmark' && bookmarkTab === 'position' && bookmarkForm.cardRoundness != null ? { borderRadius: `${bookmarkForm.cardRoundness}px` } : undefined}
           >
             <button className="modal-close icon-button" onClick={() => setModal(null)} aria-label="Close dialog">
               <Icon name="close" />
@@ -1805,12 +1810,20 @@ function App() {
                       {styleSubTab === 'text' && (
                         <div className="sub-tab-content">
                           {/* Font Preview */}
-                          <div className="fm-field">
-                            <span>Font preview</span>
-                            <div className={`fontmenu-preview ${fontClasses(resolveFont(bookmarkForm.font, bookmarkParentGroup?.font, globalFont))}`}>
-                              <span>{bookmarkForm.name || 'Bookmark name'}</span>
-                            </div>
-                          </div>
+                          {(() => {
+                            const previewFont = resolveFont(globalFont, bookmarkParentGroup?.font, bookmarkForm.font);
+                            const previewSize = `calc(${(previewFont.size ?? 11)}px * var(--fs, 1) * ${(bookmarkForm.nameSize ?? 100) / 100})`;
+                            return (
+                              <div className="fm-field">
+                                <span>Font preview</span>
+                                <div className="fontmenu-preview">
+                                  <strong className={fontClasses(previewFont)} style={{ ...titleStyle(previewFont), fontSize: previewSize }}>
+                                    {bookmarkForm.name || 'Bookmark name'}
+                                  </strong>
+                                </div>
+                              </div>
+                            );
+                          })()}
                           
                           {/* Font Family */}
                           <div className="fm-field">
@@ -1855,7 +1868,6 @@ function App() {
                                   font: { ...bookmarkForm.font, size: parseInt(e.target.value) || undefined } 
                                 })}
                               />
-                              <span className="unit">px</span>
                               <button
                                 type="button"
                                 className="reset-btn"
@@ -1933,66 +1945,54 @@ function App() {
                             </div>
                           </div>
                           
-                          {/* Text Effect */}
-                          <div className="fm-field">
-                            <span>Text Effect</span>
-                            <select
-                              value={bookmarkForm.font.effect ?? ''}
-                              onChange={(e) => setBookmarkForm({ 
-                                ...bookmarkForm, 
-                                font: { ...bookmarkForm.font, effect: e.target.value || undefined } 
-                              })}
-                            >
-                              <option value="">Inherit</option>
-                              <option value="none">None</option>
-                              <option value="grow">Grow</option>
-                              <option value="lift">Lift</option>
-                              <option value="glow">Glow</option>
-                              <option value="neon">Neon</option>
-                              <option value="underline">Underline</option>
-                              <option value="bold">Bold</option>
-                              <option value="slant">Slant</option>
-                              <option value="gradient">Gradient</option>
-                              <option value="shine">Shine</option>
-                              <option value="bounce">Bounce</option>
-                              <option value="tilt">Tilt</option>
-                              <option value="spacing">Spacing</option>
-                              <option value="wiggle">Wiggle</option>
-                            </select>
-                          </div>
-                          
-                          {/* Hover Effect */}
-                          <div className="fm-field">
-                            <span>Hover Effect</span>
-                            <select
-                              value={bookmarkForm.font.hoverEffect ?? ''}
-                              onChange={(e) => setBookmarkForm({ 
-                                ...bookmarkForm, 
-                                font: { ...bookmarkForm.font, hoverEffect: e.target.value || undefined } 
-                              })}
-                            >
-                              <option value="">Inherit</option>
-                              <option value="none">None</option>
-                              <option value="grow">Grow</option>
-                              <option value="lift">Lift</option>
-                              <option value="glow">Glow</option>
-                              <option value="neon">Neon</option>
-                              <option value="underline">Underline</option>
-                              <option value="bold">Bold</option>
-                              <option value="slant">Slant</option>
-                              <option value="gradient">Gradient</option>
-                              <option value="shine">Shine</option>
-                              <option value="bounce">Bounce</option>
-                              <option value="tilt">Tilt</option>
-                              <option value="spacing">Spacing</option>
-                              <option value="wiggle">Wiggle</option>
-                            </select>
+                          {/* Text Effect + Hover Effect on same row */}
+                          <div className="fm-grid">
+                            <div className="fm-field">
+                              <span>Text Effect</span>
+                              <select
+                                value={bookmarkForm.font.effect ?? ''}
+                                onChange={(e) => setBookmarkForm({ 
+                                  ...bookmarkForm, 
+                                  font: { ...bookmarkForm.font, effect: e.target.value || undefined } 
+                                })}
+                              >
+                                <option value="">Inherit</option>
+                                {EFFECT_OPTIONS.map((o) => (
+                                  <option key={o.value} value={o.value}>{o.label}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="fm-field">
+                              <span>Hover Effect</span>
+                              <select
+                                value={bookmarkForm.font.hover ?? ''}
+                                onChange={(e) => setBookmarkForm({ 
+                                  ...bookmarkForm, 
+                                  font: { ...bookmarkForm.font, hover: e.target.value || undefined } 
+                                })}
+                              >
+                                <option value="">Inherit</option>
+                                {HOVER_OPTIONS.map((o) => (
+                                  <option key={o.value} value={o.value}>{o.label}</option>
+                                ))}
+                              </select>
+                            </div>
                           </div>
                         </div>
                       )}
                       
                       {styleSubTab === 'icon' && (
                         <div className="sub-tab-content">
+                          <div className="icon-preview-box">
+                            <span className="site-logo" style={iconStyleCss(bookmarkForm.iconStyle)}>
+                              <Brand
+                                kind={bookmarkForm.icon === 'auto' ? resolveAutoIcon(formUrl) : bookmarkForm.icon}
+                                name={bookmarkForm.name || 'Aa'}
+                                url={formUrl}
+                                text={bookmarkForm.iconText}
+                              />
+                            </span>
+                          </div>
                           <div className="icon-style-inline">
                             <label>
                               Size
