@@ -40,7 +40,14 @@ type GalleryProps = {
 export function ThemeGallery({ themeId, alts, customs, onPick, onCycle, onEdit, onDelete }: GalleryProps) {
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<'all' | 'dark' | 'light' | 'mine' | 'favorites'>('all');
-  const [columns, setColumns] = useState(3);
+  const [columns, setColumns] = useState(() => {
+    try {
+      const stored = Number(localStorage.getItem('nook-columns'));
+      return stored === 3 || stored === 4 || stored === 5 ? stored : 3;
+    } catch {
+      return 3;
+    }
+  });
   const [loadedCount, setLoadedCount] = useState(36);
   const [favorites, setFavorites] = useState<Set<string>>(() => {
     try {
@@ -66,6 +73,14 @@ export function ThemeGallery({ themeId, alts, customs, onPick, onCycle, onEdit, 
   useEffect(() => {
     localStorage.setItem('nook-favorites', JSON.stringify([...favorites]));
   }, [favorites]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('nook-columns', String(columns));
+    } catch {
+      /* ignore */
+    }
+  }, [columns]);
 
   useEffect(() => {
     const el = sentinelRef.current;
@@ -338,7 +353,6 @@ export function ThemeEditor({ draft, onChange, onCancel, onSaveNew, onUpdate, on
           </button>
         )}
         <button type="button" className="primary-button" onClick={onSaveNew} disabled={!draft.name.trim()}>
-          <Icon name="check" size={16} />
           Save as new theme
         </button>
       </div>

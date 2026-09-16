@@ -12,6 +12,7 @@ export type IconStyle = {
   shadowX?: number | null;
   shadowY?: number | null;
   shadowBlur?: number | null;
+  shadowSize?: number | null;
   shadowColor?: string;
 };
 
@@ -38,9 +39,11 @@ export function normIconStyle(input: unknown): IconStyle | undefined {
     const sx = clampNum(v.shadowX, -20, 20);
     const sy = clampNum(v.shadowY, -20, 20);
     const blur = clampNum(v.shadowBlur, 0, 30);
+    const spread = clampNum(v.shadowSize, 0, 20);
     if (sx) out.shadowX = sx;
     if (sy) out.shadowY = sy;
     if (blur != null && blur !== 6) out.shadowBlur = blur;
+    if (spread) out.shadowSize = spread;
     if (typeof v.shadowColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(v.shadowColor)) out.shadowColor = v.shadowColor;
   }
   return Object.keys(out).length ? out : undefined;
@@ -60,7 +63,26 @@ export function iconStyleCss(s?: IconStyle | null): CSSProperties | undefined {
   const css: CSSProperties = {};
   if (t.length) css.transform = t.join(' ');
   if (s!.shadow) {
-    css.filter = `drop-shadow(${s!.shadowX || 0}px ${s!.shadowY || 0}px ${s!.shadowBlur ?? 6}px ${s!.shadowColor || '#000000'})`;
+    const sx = s!.shadowX || 0;
+    const sy = s!.shadowY || 0;
+    const blur = s!.shadowBlur ?? 6;
+    const col = s!.shadowColor || '#000000';
+    const spread = s!.shadowSize || 0;
+    if (spread > 0) {
+      // CSS drop-shadow has no spread, so emulate a larger shadow by layering
+      // copies around the base offset in a ring scaled by the size value.
+      const steps = 8;
+      const layers: string[] = [];
+      for (let i = 0; i < steps; i++) {
+        const a = (i / steps) * Math.PI * 2;
+        const ox = Math.round((sx + Math.cos(a) * spread) * 100) / 100;
+        const oy = Math.round((sy + Math.sin(a) * spread) * 100) / 100;
+        layers.push(`drop-shadow(${ox}px ${oy}px ${blur}px ${col})`);
+      }
+      css.filter = layers.join(' ');
+    } else {
+      css.filter = `drop-shadow(${sx}px ${sy}px ${blur}px ${col})`;
+    }
   }
   return css;
 }
@@ -135,6 +157,10 @@ export function IconStyleModal({ name, value, onChange, onClose, renderIcon }: P
                   <SliderRow label="Shadow blur" value={value.shadowBlur ?? null} dflt={6} min={0} max={30} unit="px" onChange={(n) => set({ shadowBlur: n })} />
                 </div>
                 <div className="is-row">
+                  <span>Size</span>
+                  <SliderRow label="Shadow size" value={value.shadowSize ?? null} dflt={0} min={0} max={20} unit="px" onChange={(n) => set({ shadowSize: n })} />
+                </div>
+                <div className="is-row">
                   <span>Color</span>
                   <input type="color" className="is-color" value={value.shadowColor || '#000000'}
                     onChange={(e) => set({ shadowColor: e.target.value })} aria-label="Shadow color" />
@@ -148,7 +174,6 @@ export function IconStyleModal({ name, value, onChange, onClose, renderIcon }: P
             Reset style
           </button>
           <button type="button" className="primary-button" onClick={onClose}>
-            <Icon name="check" size={16} />
             Done
           </button>
         </div>
