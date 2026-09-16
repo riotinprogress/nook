@@ -1,7 +1,40 @@
 import { palettes, type Palette } from './palettes';
 
 export type Vars = Record<string, string>;
-export type CustomTheme = { id: string; name: string; dark: boolean; vars: Vars; from?: string };
+export type CustomTheme = { id: string; name: string; dark: boolean; vars: Vars; from?: string; baseId?: string };
+
+/**
+ * Resolve the root stock-palette id a theme descends from.
+ * Stock palettes return their own id; custom themes follow their `baseId`
+ * link (falling back to the default theme when the chain is broken).
+ */
+export function baseThemeId(id: string, customs: CustomTheme[]): string {
+  const seen = new Set<string>();
+  let cur = id;
+  while (cur && !seen.has(cur)) {
+    seen.add(cur);
+    if (paletteById.has(cur)) return cur;
+    const custom = customs.find((c) => c.id === cur);
+    if (!custom || !custom.baseId) break;
+    cur = custom.baseId;
+  }
+  return paletteById.has(id) ? id : DEFAULT_THEME;
+}
+
+/**
+ * The ordered ring of variations for a theme: every stock alternate of the
+ * base palette, followed by each user variant linked to that base. Cycling
+ * walks this list and loops back to the start.
+ */
+export function themeRing(id: string, customs: CustomTheme[]): { id: string; alt: number }[] {
+  const base = baseThemeId(id, customs);
+  const p = paletteById.get(base);
+  const ring: { id: string; alt: number }[] = [];
+  const count = Math.max(1, p ? p.a.length : 1);
+  for (let i = 0; i < count; i++) ring.push({ id: base, alt: i });
+  for (const c of customs) if (c.baseId === base) ring.push({ id: c.id, alt: 0 });
+  return ring;
+}
 
 /** The editable surface of a theme — every colour Nook paints with. */
 export const VARS: { key: string; css: string; label: string; hint: string }[] = [

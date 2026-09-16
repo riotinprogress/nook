@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEven
 import './index.css';
 import { Icon } from './Icon';
 import { palettes } from './palettes';
-import { applyVars, DEFAULT_THEME, LEGACY, norm, resolveTheme, VARS, type CustomTheme, type Vars } from './theme';
+import { applyVars, baseThemeId, DEFAULT_THEME, LEGACY, norm, resolveTheme, themeRing, VARS, type CustomTheme, type Vars } from './theme';
 import { makeDraft, ThemeEditor, ThemeGallery, type Draft } from './Themes';
 import { FontMenu, summarizeFont } from './FontMenu';
 import { BranchMenu, type BranchPanel } from './BranchMenu';
@@ -16,6 +16,8 @@ import {
   INHERIT_FONT,
   EFFECT_OPTIONS,
   HOVER_OPTIONS,
+  FONT_FAMILIES,
+  familyStack,
   fontClasses,
   globalAppStyle,
   normFont,
@@ -729,12 +731,18 @@ function App() {
     notify(r.name + (r.altCount > 1 ? ' · variation ' + (alt + 1) : '') + ' applied');
   }
   function cycleTheme(id: string) {
-    const count = Math.max(1, resolveTheme(id, 0, customs).altCount);
-    const next = ((alts[id] ?? 0) + 1) % count;
-    setThemeId(id);
-    setAlts((a) => ({ ...a, [id]: next }));
-    const r = resolveTheme(id, next, customs);
-    notify(r.name + ' · variation ' + (next + 1) + ' of ' + count);
+    // Walk the full ring of variations: the base palette's alternates first,
+    // then every user-made variant linked to that base, looping at the end.
+    const ring = themeRing(id, customs);
+    if (ring.length === 0) return;
+    const curAlt = alts[id] ?? 0;
+    const pos = ring.findIndex((v) => v.id === id && v.alt === curAlt);
+    const nextEntry = ring[(pos + 1 + ring.length) % ring.length];
+    setThemeId(nextEntry.id);
+    setAlts((a) => ({ ...a, [nextEntry.id]: nextEntry.alt }));
+    const r = resolveTheme(nextEntry.id, nextEntry.alt, customs);
+    const step = ((pos + 1 + ring.length) % ring.length) + 1;
+    notify(r.name + ' · variation ' + step + ' of ' + ring.length);
   }
   function openEditor(id: string) {
     setDraft(makeDraft(id, alts[id] ?? 0, customs));
@@ -744,7 +752,7 @@ function App() {
     if (!draft) return;
     const name = draft.name.trim() || 'My theme';
     const id = 'my-' + crypto.randomUUID().slice(0, 8);
-    setCustoms((c) => [{ id, name, dark: draft.dark, vars: sanitize(draft.vars, current.vars), from: draft.sourceName }, ...c]);
+    setCustoms((c) => [{ id, name, dark: draft.dark, vars: sanitize(draft.vars, current.vars), from: draft.sourceName, baseId: baseThemeId(draft.sourceId, customs) }, ...c]);
     setThemeId(id);
     setDraft(null);
     setModal('themes');
@@ -1101,11 +1109,23 @@ function App() {
           </button>
         </nav>
         <div className="sidebar-bottom">
-          <button className="theme-widget" onClick={() => setModal('themes')}>
+          <div
+            className="theme-widget"
+            role="button"
+            tabIndex={0}
+            title={`${current.name} — click to cycle color variations`}
+            onClick={() => cycleTheme(themeId)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                cycleTheme(themeId);
+              }
+            }}
+          >
             <span className="theme-widget-top">
               <span>
                 <Icon name="palette" size={17} />
-                Make it your own
+                <span className="theme-widget-name" title={current.name}>{current.name}</span>
               </span>
               <Icon name="chevron" size={15} />
             </span>
@@ -1113,9 +1133,20 @@ function App() {
               {[current.vars.accent, current.vars.accentSoft, current.vars.line, current.vars.text].map((c, i) => (
                 <i style={{ background: c }} key={i} />
               ))}
-              <span title={current.name}>{current.name}</span>
+              <button
+                type="button"
+                className="theme-cog"
+                title="Mix your own"
+                aria-label="Mix your own"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openEditor(themeId);
+                }}
+              >
+                <Icon name="settings" size={15} />
+              </button>
             </span>
-          </button>
+          </div>
           <button className="sidebar-setting" onClick={() => setModal('themes')}>
             <Icon name="palette" size={18} />
             Themes<span className="new-badge">{palettes.length}</span>
@@ -1416,12 +1447,15 @@ function App() {
                           data-bk-padding={cardPadding}
                           data-bk-theme-color={b.themeColor}
                           onDragStart={(e) => {
+                            e.stopPropagation();
                             setDrag({ id: b.id, group: g.id });
                             e.dataTransfer.effectAllowed = 'move';
                             e.dataTransfer.setData('text/plain', b.id);
+                            setGroupDrag(null);
                             setMenu(null);
                           }}
-                          onDragEnd={() => {
+                          onDragEnd={(e) => {
+                            e.stopPropagation();
                             setDrag(null);
                             setDropTarget('');
                           }}
@@ -1617,7 +1651,7 @@ function App() {
           }}
         >
           <section
-            className={'modal ' + (modal === 'themes' ? 'theme-modal' : modal === 'editor' ? 'editor-modal' : modal === 'settings' ? 'settings-modal' : '')}
+            className={'modal ' + (modal === 'themes' ? 'theme-modal' : modal === 'editor' ? 'editor-modal' : modal === 'settings' ? 'settings-modal' : modal === 'bookmark' ? 'bookmark-modal' : '')}
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-title"
@@ -1828,18 +1862,34 @@ function App() {
                           {/* Font Family */}
                           <div className="fm-field">
                             <span>Font</span>
-                            <select
-                              value={bookmarkForm.font.family || ''}
-                              onChange={(e) => setBookmarkForm({ 
-                                ...bookmarkForm, 
-                                font: { ...bookmarkForm.font, family: e.target.value || undefined } 
-                              })}
-                            >
-                              <option value="">Inherit</option>
-                              {['DM Sans', 'Manrope', 'Inter', 'Poppins', 'Montserrat', 'Roboto', 'Open Sans', 'Lato', 'Nunito', 'Raleway', 'Space Grotesk', 'Outfit', 'Quicksand', 'Work Sans', 'Ubuntu', 'Cabin', 'Playfair Display', 'Merriweather', 'JetBrains Mono', 'Orbitron', 'Bebas Neue', 'Pacifico', 'Dancing Script', 'Lobster'].map((f) => (
-                                <option key={f} value={f}>{f}</option>
-                              ))}
-                            </select>
+                            {(() => {
+                              // Family that "Inherit" resolves to, ignoring any family already set on this bookmark.
+                              const inheritedFamily = resolveFont(
+                                globalFont,
+                                bookmarkParentGroup?.font,
+                                { ...bookmarkForm.font, family: undefined }
+                              ).family;
+                              const selectedStack = familyStack(bookmarkForm.font.family || inheritedFamily);
+                              return (
+                                <select
+                                  value={bookmarkForm.font.family || ''}
+                                  style={selectedStack ? { fontFamily: selectedStack } : undefined}
+                                  onChange={(e) => setBookmarkForm({
+                                    ...bookmarkForm,
+                                    font: { ...bookmarkForm.font, family: e.target.value || undefined }
+                                  })}
+                                >
+                                  <option value="" style={familyStack(inheritedFamily) ? { fontFamily: familyStack(inheritedFamily) } : undefined}>
+                                    {inheritedFamily ? `Inherit (${inheritedFamily})` : 'Inherit'}
+                                  </option>
+                                  {FONT_FAMILIES.map((f) => (
+                                    <option key={f.value} value={f.value} style={{ fontFamily: f.stack }}>
+                                      {f.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              );
+                            })()}
                           </div>
                           
                           {/* Font Size */}
@@ -1983,180 +2033,159 @@ function App() {
                       
                       {styleSubTab === 'icon' && (
                         <div className="sub-tab-content">
-                          <div className="icon-preview-box">
-                            <span className="site-logo" style={iconStyleCss(bookmarkForm.iconStyle)}>
-                              <Brand
-                                kind={bookmarkForm.icon === 'auto' ? resolveAutoIcon(formUrl) : bookmarkForm.icon}
-                                name={bookmarkForm.name || 'Aa'}
-                                url={formUrl}
-                                text={bookmarkForm.iconText}
-                              />
-                            </span>
-                          </div>
-                          <div className="icon-style-inline">
-                            <label>
-                              Size
-                              <SliderRow
-                                value={bookmarkForm.iconStyle?.size ?? 100}
-                                dflt={100}
-                                min={50}
-                                max={200}
-                                unit=""
-                                onChange={(n) => n != null && setBookmarkForm({ 
-                                  ...bookmarkForm, 
-                                  iconStyle: { ...bookmarkForm.iconStyle, size: n } 
-                                })}
-                              />
-                            </label>
-                            <label>
-                              Rotation
-                              <SliderRow
-                                value={bookmarkForm.iconStyle?.rotate ?? 0}
-                                dflt={0}
-                                min={-180}
-                                max={180}
-                                unit=""
-                                onChange={(n) => n != null && setBookmarkForm({ 
-                                  ...bookmarkForm, 
-                                  iconStyle: { ...bookmarkForm.iconStyle, rotate: n } 
-                                })}
-                              />
-                            </label>
-                            <label>
-                              X Position
-                              <SliderRow
-                                value={bookmarkForm.iconStyle?.dx ?? 0}
-                                dflt={0}
-                                min={-50}
-                                max={50}
-                                unit=""
-                                onChange={(n) => n != null && setBookmarkForm({ 
-                                  ...bookmarkForm, 
-                                  iconStyle: { ...bookmarkForm.iconStyle, dx: n } 
-                                })}
-                              />
-                            </label>
-                            <label>
-                              Y Position
-                              <SliderRow
-                                value={bookmarkForm.iconStyle?.dy ?? 0}
-                                dflt={0}
-                                min={-50}
-                                max={50}
-                                unit=""
-                                onChange={(n) => n != null && setBookmarkForm({ 
-                                  ...bookmarkForm, 
-                                  iconStyle: { ...bookmarkForm.iconStyle, dy: n } 
-                                })}
-                              />
-                            </label>
-                            <div className="shadow-row">
-                              <span>Shadow</span>
-                              <button
-                                type="button"
-                                className={'toggle' + (bookmarkForm.iconStyle?.shadow ? ' on' : '')}
-                                onClick={() => {
-                                  const currentShadow = bookmarkForm.iconStyle?.shadow;
-                                  setBookmarkForm({ 
-                                    ...bookmarkForm, 
-                                    iconStyle: { 
-                                      ...bookmarkForm.iconStyle, 
-                                      shadow: !currentShadow,
-                                      shadowX: !currentShadow ? 0 : undefined,
-                                      shadowY: !currentShadow ? 2 : undefined,
-                                      shadowBlur: !currentShadow ? 6 : undefined,
-                                      shadowColor: !currentShadow ? '#000000' : undefined
-                                    } 
-                                  });
-                                }}
-                              >
-                                <span />
-                              </button>
-                            </div>
-                            <div className="shadow-expanded">
-                              <SliderRow
-                                label="X"
-                                value={bookmarkForm.iconStyle?.shadowX ?? 0}
-                                dflt={0}
-                                min={-20}
-                                max={20}
-                                unit=""
-                                onChange={(n) => n != null && setBookmarkForm({ 
-                                  ...bookmarkForm, 
-                                  iconStyle: { 
-                                    ...bookmarkForm.iconStyle, 
-                                    shadowX: n
-                                  } 
-                                })}
-                                disabled={!bookmarkForm.iconStyle?.shadow}
-                              />
-                              <SliderRow
-                                label="Y"
-                                value={bookmarkForm.iconStyle?.shadowY ?? 2}
-                                dflt={2}
-                                min={-20}
-                                max={20}
-                                unit=""
-                                onChange={(n) => n != null && setBookmarkForm({ 
-                                  ...bookmarkForm, 
-                                  iconStyle: { 
-                                    ...bookmarkForm.iconStyle, 
-                                    shadowY: n
-                                  } 
-                                })}
-                                disabled={!bookmarkForm.iconStyle?.shadow}
-                              />
-                              <SliderRow
-                                label="Blur"
-                                value={bookmarkForm.iconStyle?.shadowBlur ?? 6}
-                                dflt={6}
-                                min={0}
-                                max={30}
-                                unit=""
-                                onChange={(n) => n != null && setBookmarkForm({ 
-                                  ...bookmarkForm, 
-                                  iconStyle: { 
-                                    ...bookmarkForm.iconStyle, 
-                                    shadowBlur: n
-                                  } 
-                                })}
-                                disabled={!bookmarkForm.iconStyle?.shadow}
-                              />
-                              <label style={{ marginTop: '8px' }}>
-                                Color
-                                <input
-                                  type="color"
-                                  value={bookmarkForm.iconStyle?.shadowColor || '#000000'}
-                                  onChange={(e) => setBookmarkForm({
-                                    ...bookmarkForm,
-                                    iconStyle: {
-                                      ...bookmarkForm.iconStyle,
-                                      shadowColor: e.target.value
-                                    }
-                                  })}
-                                  disabled={!bookmarkForm.iconStyle?.shadow}
-                                  style={{ width: '100%', height: '32px', cursor: 'pointer' }}
+                          <div className="is-panes">
+                            <div className="is-preview">
+                              <span className="site-logo is-logo" style={iconStyleCss(bookmarkForm.iconStyle)}>
+                                <Brand
+                                  kind={bookmarkForm.icon === 'auto' ? resolveAutoIcon(formUrl) : bookmarkForm.icon}
+                                  name={bookmarkForm.name || 'Aa'}
+                                  url={formUrl}
+                                  text={bookmarkForm.iconText}
                                 />
-                              </label>
+                              </span>
+                              <span className="is-preview-name">{bookmarkForm.name || 'Bookmark name'}</span>
                             </div>
-                          </div>
-                          <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                            <button
-                              type="button"
-                              className="ghost-button"
-                              onClick={() => setStyleOpen(true)}
-                              style={{ flex: 1 }}
-                            >
-                              <Icon name="sliders" size={14} /> Advanced Editor
-                            </button>
-                            <button
-                              type="button"
-                              className="ghost-button reset-icon-style"
-                              onClick={() => setBookmarkForm({ ...bookmarkForm, iconStyle: {} })}
-                              style={{ flex: 1 }}
-                            >
-                              <Icon name="refresh" size={14} /> Reset
-                            </button>
+                            <div className="is-controls">
+                              <p className="is-group-label">Transform</p>
+                              <div className="is-row">
+                                <span>Size</span>
+                                <SliderRow
+                                  label="Icon size"
+                                  value={bookmarkForm.iconStyle?.size ?? null}
+                                  dflt={100}
+                                  min={20}
+                                  max={300}
+                                  unit="%"
+                                  onChange={(n) => setBookmarkForm({ ...bookmarkForm, iconStyle: { ...bookmarkForm.iconStyle, size: n } })}
+                                />
+                              </div>
+                              <div className="is-row">
+                                <span>Rotate</span>
+                                <SliderRow
+                                  label="Icon rotation"
+                                  value={bookmarkForm.iconStyle?.rotate ?? null}
+                                  dflt={0}
+                                  min={-180}
+                                  max={180}
+                                  unit="°"
+                                  onChange={(n) => setBookmarkForm({ ...bookmarkForm, iconStyle: { ...bookmarkForm.iconStyle, rotate: n } })}
+                                />
+                              </div>
+                              <div className="is-row">
+                                <span>Offset X</span>
+                                <SliderRow
+                                  label="Horizontal offset"
+                                  value={bookmarkForm.iconStyle?.dx ?? null}
+                                  dflt={0}
+                                  min={-40}
+                                  max={40}
+                                  unit="px"
+                                  onChange={(n) => setBookmarkForm({ ...bookmarkForm, iconStyle: { ...bookmarkForm.iconStyle, dx: n } })}
+                                />
+                              </div>
+                              <div className="is-row">
+                                <span>Offset Y</span>
+                                <SliderRow
+                                  label="Vertical offset"
+                                  value={bookmarkForm.iconStyle?.dy ?? null}
+                                  dflt={0}
+                                  min={-40}
+                                  max={40}
+                                  unit="px"
+                                  onChange={(n) => setBookmarkForm({ ...bookmarkForm, iconStyle: { ...bookmarkForm.iconStyle, dy: n } })}
+                                />
+                              </div>
+                              <p className="is-group-label">Shadow</p>
+                              <div className="is-row">
+                                <span>Shadow</span>
+                                <button
+                                  type="button"
+                                  className={'toggle' + (bookmarkForm.iconStyle?.shadow ? ' on' : '')}
+                                  role="switch"
+                                  aria-checked={!!bookmarkForm.iconStyle?.shadow}
+                                  aria-label="Icon shadow"
+                                  onClick={() => {
+                                    const on = bookmarkForm.iconStyle?.shadow;
+                                    setBookmarkForm({
+                                      ...bookmarkForm,
+                                      iconStyle: {
+                                        ...bookmarkForm.iconStyle,
+                                        shadow: !on,
+                                        shadowX: !on ? 0 : undefined,
+                                        shadowY: !on ? 2 : undefined,
+                                        shadowBlur: !on ? 6 : undefined,
+                                        shadowSize: !on ? 0 : undefined,
+                                        shadowColor: !on ? '#000000' : undefined,
+                                      },
+                                    });
+                                  }}
+                                >
+                                  <span />
+                                </button>
+                              </div>
+                              {bookmarkForm.iconStyle?.shadow && (
+                                <>
+                                  <div className="is-row">
+                                    <span>X</span>
+                                    <SliderRow
+                                      label="Shadow horizontal offset"
+                                      value={bookmarkForm.iconStyle?.shadowX ?? null}
+                                      dflt={0}
+                                      min={-20}
+                                      max={20}
+                                      unit="px"
+                                      onChange={(n) => setBookmarkForm({ ...bookmarkForm, iconStyle: { ...bookmarkForm.iconStyle, shadowX: n } })}
+                                    />
+                                  </div>
+                                  <div className="is-row">
+                                    <span>Y</span>
+                                    <SliderRow
+                                      label="Shadow vertical offset"
+                                      value={bookmarkForm.iconStyle?.shadowY ?? null}
+                                      dflt={2}
+                                      min={-20}
+                                      max={20}
+                                      unit="px"
+                                      onChange={(n) => setBookmarkForm({ ...bookmarkForm, iconStyle: { ...bookmarkForm.iconStyle, shadowY: n } })}
+                                    />
+                                  </div>
+                                  <div className="is-row">
+                                    <span>Blur</span>
+                                    <SliderRow
+                                      label="Shadow blur"
+                                      value={bookmarkForm.iconStyle?.shadowBlur ?? null}
+                                      dflt={6}
+                                      min={0}
+                                      max={30}
+                                      unit="px"
+                                      onChange={(n) => setBookmarkForm({ ...bookmarkForm, iconStyle: { ...bookmarkForm.iconStyle, shadowBlur: n } })}
+                                    />
+                                  </div>
+                                  <div className="is-row">
+                                    <span>Size</span>
+                                    <SliderRow
+                                      label="Shadow size"
+                                      value={bookmarkForm.iconStyle?.shadowSize ?? null}
+                                      dflt={0}
+                                      min={0}
+                                      max={20}
+                                      unit="px"
+                                      onChange={(n) => setBookmarkForm({ ...bookmarkForm, iconStyle: { ...bookmarkForm.iconStyle, shadowSize: n } })}
+                                    />
+                                  </div>
+                                  <div className="is-row">
+                                    <span>Color</span>
+                                    <input
+                                      type="color"
+                                      className="is-color"
+                                      value={bookmarkForm.iconStyle?.shadowColor || '#000000'}
+                                      onChange={(e) => setBookmarkForm({ ...bookmarkForm, iconStyle: { ...bookmarkForm.iconStyle, shadowColor: e.target.value } })}
+                                      aria-label="Shadow color"
+                                    />
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </div>
                       )}
@@ -2448,11 +2477,21 @@ function App() {
 
                   {formError && <p className="form-error">{formError}</p>}
                   <div className="modal-actions">
+                    {bookmarkTab === 'style' && styleSubTab === 'icon' && (
+                      <button
+                        type="button"
+                        className="ghost-button"
+                        onClick={() => setBookmarkForm({ ...bookmarkForm, iconStyle: {} })}
+                        disabled={!hasIconStyle(bookmarkForm.iconStyle)}
+                        title="Reset icon style"
+                      >
+                        <Icon name="refresh" size={14} /> Reset
+                      </button>
+                    )}
                     <button type="button" className="secondary-button" onClick={() => setModal(null)}>
                       Cancel
                     </button>
                     <button className="primary-button" type="submit">
-                      <Icon name="check" size={16} />
                       {bookmarkForm.id ? 'Save changes' : 'Add bookmark'}
                     </button>
                   </div>
@@ -2774,7 +2813,6 @@ function App() {
                   <span className="field-hint">Changes are saved automatically</span>
                   <button className="primary-button" onClick={() => setModal(null)}>
                     All done
-                    <Icon name="check" size={16} />
                   </button>
                 </div>
               </>
